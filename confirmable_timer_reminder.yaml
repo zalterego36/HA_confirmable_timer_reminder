@@ -1,0 +1,98 @@
+blueprint:
+  name: Confirmable Timer Reset with Reminder
+  description: >
+    Tracks how long it's been since a task was last done. Sends a confirmation
+    notification when triggered; resets the timer only if the user confirms.
+    Sends an optional reminder if too many days pass.
+  domain: automation
+  input:
+    task_name:
+      name: Task Name
+      description: Name of the task (e.g., "Toilet Cleaning")
+      selector:
+        text:
+    datetime_entity:
+      name: Date/Time Entity
+      description: input_datetime that stores the last time the task was completed.
+      selector:
+        entity:
+          domain: input_datetime
+    mobile_device:
+      name: Mobile Device
+      description: The target device for sending actionable notifications.
+      selector:
+        device:
+          integration: mobile_app
+    reminder_enabled:
+      name: Reminder Toggle (Optional)
+      description: input_boolean to enable or disable reminders.
+      default: null
+      selector:
+        entity:
+          domain: input_boolean
+    reminder_threshold_days:
+      name: Reminder Threshold (Days)
+      description: How many days before a reminder is sent?
+      default: 7
+      selector:
+        number:
+          min: 1
+          max: 30
+          step: 1
+          unit_of_measurement: days
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input datetime_entity
+    attribute: timestamp  # not used directly but needed for HA
+    above: 0  # dummy, replaced in action
+
+variables:
+  task_name: !input task_name
+  datetime_entity: !input datetime_entity
+  device_id: !input mobile_device
+  reminder_enabled: !input reminder_enabled
+  reminder_threshold_days: !input reminder_threshold_days
+
+# Template trigger workaround
+condition: []
+
+action:
+  - variables:
+      now_ts: "{{ now().timestamp() }}"
+      last_ts: "{{ as_timestamp(states(datetime_entity)) }}"
+      days_since: "{{ ((now_ts - last_ts) / 86400) | round(1) }}"
+  - choose:
+      - conditions:
+          - "{{ days_since >= reminder_threshold_days }}"
+          - "{{ reminder_enabled is none or is_state(reminder_enabled, 'on') }}"
+        sequence:
+          - device_id: !input mobile_device
+            domain: mobile_app
+            type: notify
+            title: "{{ task_name }} Reminder"
+            message: "It has been {{ days_since }} days since you last completed '{{ task_name }}'."
+            data:
+              actions:
+                - action: "{{ task_name | slugify }}_yes"
+                  title: "Yes, I did it"
+                  icon: "mdi:check"
+                - action: "{{ task_name | slugify }}_no"
+                  title: "No, not yet"
+                  icon: "mdi:close"
+              ttl: 0
+              priority: high
+              notification_icon: mdi:calendar-clock
+  - wait_for_trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "{{ task_name | slugify }}_yes"
+    timeout: "1:00:00"
+    continue_on_timeout: false
+  - service: input_datetime.set_datetime
+    target:
+      entity_id: !input datetime_entity
+    data:
+      datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+mode: single
