@@ -47,19 +47,19 @@ trigger:
 condition:
   - condition: template
     value_template: >
-      {% set last_done = states[input.date_entity] %}
+      {% set last_done = states[inputs.date_entity].state %}
       {% if not last_done %}
         false
       {% else %}
         {% set last = as_datetime(last_done) %}
         {% set days_passed = (now() - last).days %}
-        {{ days_passed >= input.reminder_interval }}
+        {{ days_passed >= inputs.reminder_interval }}
       {% endif %}
 
   - condition: or
     conditions:
       - condition: template
-        value_template: "{{ input.reminder_toggle == '' }}"
+        value_template: "{{ inputs.reminder_toggle == '' }}"
       - condition: state
         entity_id: !input reminder_toggle
         state: "on"
