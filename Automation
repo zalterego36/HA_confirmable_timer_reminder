@@ -1,0 +1,32 @@
+alias: Handle {{ input.task_name }} Confirmation Response
+description: Handles the user's response to the {{ input.task_name }} reminder.
+trigger:
+  - platform: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: "YES_{{ input.task_name | slugify }}"
+  - platform: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: "NO_{{ input.task_name | slugify }}"
+condition: []
+action:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.event.data.action == 'YES_{{ input.task_name | slugify }}' }}"
+        sequence:
+          - service: input_datetime.set_datetime
+            target:
+              entity_id: input_datetime.{{ input.task_name | slugify }}_last_done
+            data:
+              datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.event.data.action == 'NO_{{ input.task_name | slugify }}' }}"
+        sequence:
+          - service: logbook.log
+            data:
+              name: "{{ input.task_name }}"
+              message: "User indicated {{ input.task_name }} was not completed."
+mode: single
