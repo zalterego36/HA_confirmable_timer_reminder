@@ -1,32 +1,32 @@
-alias: Handle Toilet Cleaning Confirmation Response
-description: Handles the user's response to the toilet cleaning reminder.
+alias: Handle TASK NAME Confirmation Response
+description: Handles the user's response to the TASK NAME reminder.
 trigger:
   - platform: event
     event_type: mobile_app_notification_action
     event_data:
-      action: "YES_clean_toilet"
+      action: "YES_task_name"
   - platform: event
     event_type: mobile_app_notification_action
     event_data:
-      action: NO_clean_toilet
+      action: NO_task_name
 condition: []
 action:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.action == 'YES_clean_toilet' }}"
+            value_template: "{{ trigger.event.data.action == 'YES_task_name' }}"
         sequence:
           - service: input_datetime.set_datetime
             target:
-              entity_id: input_datetime.toilet_last_cleaned
+              entity_id: input_datetime.task_name
             data:
               datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.action == 'NO_clean_toilet' }}"
+            value_template: "{{ trigger.event.data.action == 'NO_task_name' }}"
         sequence:
           - service: logbook.log
             data:
-              name: Toilet Cleaning
-              message: User indicated the toilet was not cleaned.
+              name: Task Name
+              message: User indicated that task name was not completed.
 mode: single
