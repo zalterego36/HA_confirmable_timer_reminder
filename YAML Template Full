@@ -1,0 +1,191 @@
+blueprint:
+  name: Confirmable Reminder with Timer Reset
+  description: >
+    Sends a reminder if a task (like cleaning) hasn't been done in a while.
+    Offers a Yes/No confirmation. 'Yes' resets a timer. Supports mobile device or group notifications.
+  domain: automation
+  input:
+    task_name:
+      name: Task Name
+      description: A friendly name for the task (e.g., "Clean Toilet").
+      selector:
+        text:
+    date_entity:
+      name: Date/Time Entity
+      description: An input_datetime entity that stores the last time the task was completed.
+      selector:
+        entity:
+          domain: input_datetime
+    reminder_interval:
+      name: Reminder Interval (Days)
+      description: How many days before sending a reminder?
+      default: 7
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: days
+    notification_target:
+      name: Notification Target (Device or Group)
+      description: >
+        The notify service to use (e.g., notify.mobile_app_your_phone or notify.all_users).
+        Must be a valid notify.* service from your setup.
+      selector:
+        text:
+    reminder_toggle:
+      name: Reminder Toggle (Optional)
+      description: Optional input_boolean to enable or disable reminders.
+      default: ""
+      selector:
+        entity:
+          domain: input_boolean
+
+trigger:
+  - platform: time
+    at: "09:00:00"
+
+condition:
+  - condition: template
+    value_template: >
+      {% set last_done = states[input.date_entity] %}
+      {% if not last_done %}
+        false
+      {% else %}
+        {% set last = as_datetime(last_done) %}
+        {% set days_passed = (now() - last).days %}
+        {{ days_passed >= input.reminder_interval }}
+      {% endif %}
+
+  - condition: or
+    conditions:
+      - condition: template
+        value_template: "{{ input.reminder_toggle == '' }}"
+      - condition: state
+        entity_id: !input reminder_toggle
+        state: "on"
+
+action:
+  - service: !input notification_target
+    data:
+      message: "Have you {{ input.task_name.lower() }} recently?"
+      title: "Reminder: {{ input.task_name }}"
+      data:
+        actions:
+          - action: "YES_{{ input.task_name | slugify }}"
+            title: "Yes"
+          - action: "NO_{{ input.task_name | slugify }}"
+            title: "No"
+
+mode: single
+
+AUTOMATIONS:
+
+alias: Handle {{ input.task_name }} Confirmation Response
+description: Handles the user's response to the {{ input.task_name }} reminder.
+trigger:
+  - platform: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: "YES_{{ input.task_name | slugify }}"
+  - platform: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: "NO_{{ input.task_name | slugify }}"
+condition: []
+action:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.event.data.action == 'YES_{{ input.task_name | slugify }}' }}"
+        sequence:
+          - service: input_datetime.set_datetime
+            target:
+              entity_id: input_datetime.{{ input.task_name | slugify }}_last_done
+            data:
+              datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.event.data.action == 'NO_{{ input.task_name | slugify }}' }}"
+        sequence:
+          - service: logbook.log
+            data:
+              name: "{{ input.task_name }}"
+              message: "User indicated {{ input.task_name }} was not completed."
+mode: single
+
+HELPERS:
+
+# Define the input helpers for each task (e.g., toggle, last done time)
+input_boolean.{{ input.task_name | slugify }}_reminder_enabled
+input_datetime.{{ input.task_name | slugify }}_last_done
+
+DASHBOARD CARDS:
+
+type: custom:button-card
+entity: input_datetime.{{ input.task_name | slugify }}_last_done
+show_icon: false
+show_state: false
+name: "{{ input.task_name }}"
+tap_action:
+  action: call-service
+  service: script.send_{{ input.task_name | slugify }}_confirmation
+layout: grid
+styles:
+  grid:
+    - grid-template-areas: |
+        "icon"
+        "name"
+        "last_done"
+        "reminder"
+    - grid-template-columns: 1fr
+    - grid-template-rows: auto auto auto auto
+    - row-gap: 4px
+  card:
+    - border-radius: 1em
+    - padding: 1em
+    - background: >
+        [[[ return states['input_boolean.{{ input.task_name | slugify }}_reminder_enabled'].state ===
+        'on'
+            ? '#4caf50' : '#9e9e9e' ]]]
+  name:
+    - grid-area: name
+    - justify-self: center
+    - color: white
+    - font-weight: bold
+    - font-size: 1.1em
+  custom_fields:
+    icon:
+      - grid-area: icon
+      - justify-self: center
+    last_done:
+      - grid-area: last_done
+      - justify-self: center
+      - text-align: center
+      - color: white
+      - white-space: normal
+    reminder:
+      - grid-area: reminder
+      - justify-self: center
+      - text-align: center
+      - color: white
+      - font-size: 0.9em
+custom_fields:
+  icon: |
+    [[[ 
+      // render the task-specific icon here
+      return `<ha-icon icon="mdi:{{ input.task_name | slugify }}" style="width:48px;height:48px;color:white;"></ha-icon>` 
+    ]]]
+  last_done: |
+    [[[ 
+      // compute days since task was last done
+      const lastDoneStr = entity.state;
+      const last = new Date(lastDoneStr);
+      const diff = Math.floor((Date.now() - last) / (1000*60*60*24));
+      return `Last done ${diff} day(s) ago`;
+    ]]]
+  reminder: |
+    [[[ 
+      return states['input_boolean.{{ input.task_name | slugify }}_reminder_enabled'].state === 'on'
+        ? "🔔 Reminders On"
+        : "🔕 Reminders Off";
+    ]]]
