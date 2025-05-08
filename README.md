@@ -20,9 +20,23 @@ Step 1: Create a Blueprint in Home Assistant
 
         Paste the YAML template into the editor and save it. This will create a new blueprint called "Confirmable Reminder with Timer Reset."
 
-Step 2: Define Task-Specific Variables
+Step 2: Create the Necessary Helper Entities
 
-Now, to use the blueprint for a specific task (e.g., Toilet Cleaning), follow these instructions:
+To track the task completion and enable/disable reminders, you'll need to create some helper entities. These can be created manually or via YAML configuration.
+
+    Create input_datetime (if not already created):
+
+        Go to Settings > Devices & Services > Entities.
+
+        Create a new input_datetime entity for the task, such as input_datetime.task_name_last_done
+
+    Create input_boolean (if needed for reminders):
+
+        Go to Settings > Devices & Services > Entities.
+
+        Create an input_boolean entity for toggling reminders, such as input_boolean.task_name_reminder_enabled.
+
+Step 3: Use the blueprint for a specific task (e.g., Toilet Cleaning), follow these instructions:
 
     Navigate to the Automations Section:
 
@@ -50,22 +64,6 @@ Now, to use the blueprint for a specific task (e.g., Toilet Cleaning), follow th
 
         After filling out the fields, click Save to create the automation.
 
-Step 3: Create the Necessary Helper Entities
-
-To track the task completion and enable/disable reminders, you'll need to create some helper entities. These can be created manually or via YAML configuration.
-
-    Create input_datetime (if not already created):
-
-        Go to Settings > Devices & Services > Entities.
-
-        Create a new input_datetime entity for the task, such as input_datetime.task_name_last_done
-
-    Create input_boolean (if needed for reminders):
-
-        Go to Settings > Devices & Services > Entities.
-
-        Create an input_boolean entity for toggling reminders, such as input_boolean.task_name_reminder_enabled.
-
 Step 4: Handle Task Confirmation via Automation
 
     Create a New Automation for Task Response:
@@ -76,7 +74,7 @@ Step 4: Handle Task Confirmation via Automation
 
         Save the automation to handle the response to the notification.
 
-Step 5: Add Dashboard Card
+Step 5: Add Dashboard Card (Optional - Mine Requires the Button Card Addon from HACs or Create your Own)
 
 To allow quick access to the task reminder and last completed date, add a dashboard card.
 
