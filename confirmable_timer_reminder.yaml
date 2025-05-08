@@ -52,7 +52,7 @@ condition:
         false
       {% else %}
         {% set last = as_datetime(last_done) %}
-        {% set days_passed = (now() - last).days %}
+        {% set days_passed = ((now().timestamp() - last.timestamp()) // 86400) | int %}
         {{ days_passed >= input.reminder_interval }}
       {% endif %}
 
