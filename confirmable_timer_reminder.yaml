@@ -1,98 +1,92 @@
 blueprint:
-  name: Confirmable Timer Reset with Reminder
+  name: Confirmable Reminder with Timer Reset
   description: >
-    Tracks how long it's been since a task was last done. Sends a confirmation
-    notification when triggered; resets the timer only if the user confirms.
-    Sends an optional reminder if too many days pass.
+    Sends a reminder if a task (like cleaning) hasn't been done in a while.
+    Offers a Yes/No confirmation. 'Yes' resets a timer. Supports mobile device or group notifications.
   domain: automation
   input:
     task_name:
       name: Task Name
-      description: Name of the task (e.g., "Toilet Cleaning")
+      description: A friendly name for the task (e.g., "Clean Toilet").
       selector:
         text:
-    datetime_entity:
+    date_entity:
       name: Date/Time Entity
-      description: input_datetime that stores the last time the task was completed.
+      description: An input_datetime entity that stores the last time the task was completed.
       selector:
         entity:
           domain: input_datetime
-    mobile_device:
-      name: Mobile Device
-      description: The target device for sending actionable notifications.
-      selector:
-        device:
-          integration: mobile_app
-    reminder_enabled:
-      name: Reminder Toggle (Optional)
-      description: input_boolean to enable or disable reminders.
-      default: null
-      selector:
-        entity:
-          domain: input_boolean
-    reminder_threshold_days:
-      name: Reminder Threshold (Days)
-      description: How many days before a reminder is sent?
+    reminder_interval:
+      name: Reminder Interval (Days)
+      description: How many days before sending a reminder?
       default: 7
       selector:
         number:
           min: 1
-          max: 30
-          step: 1
+          max: 60
           unit_of_measurement: days
+    notification_target:
+      name: Notification Target (Device or Group)
+      description: >
+        The notify service to use (e.g., notify.mobile_app_your_phone or notify.all_users).
+        Must be a valid notify.* service from your setup.
+      selector:
+        text:
+    reminder_toggle:
+      name: Reminder Toggle (Optional)
+      description: Optional input_boolean to enable or disable reminders.
+      default: ""
+      selector:
+        entity:
+          domain: input_boolean
 
 trigger:
-  - platform: numeric_state
-    entity_id: !input datetime_entity
-    attribute: timestamp  # not used directly but needed for HA
-    above: 0  # dummy, replaced in action
+  - platform: time
+    at: "09:00:00"
 
-variables:
-  task_name: !input task_name
-  datetime_entity: !input datetime_entity
-  device_id: !input mobile_device
-  reminder_enabled: !input reminder_enabled
-  reminder_threshold_days: !input reminder_threshold_days
+condition:
+  - condition: template
+    value_template: >
+      {% set last_done = states[input.date_entity] %}
+      {% if not last_done %}
+        false
+      {% else %}
+        {% set last = as_datetime(last_done) %}
+        {% set days_passed = (now() - last).days %}
+        {{ days_passed >= input.reminder_interval }}
+      {% endif %}
 
-# Template trigger workaround
-condition: []
+  - condition: or
+    conditions:
+      - condition: template
+        value_template: "{{ input.reminder_toggle == '' }}"
+      - condition: state
+        entity_id: !input reminder_toggle
+        state: "on"
 
 action:
-  - variables:
-      now_ts: "{{ now().timestamp() }}"
-      last_ts: "{{ as_timestamp(states(datetime_entity)) }}"
-      days_since: "{{ ((now_ts - last_ts) / 86400) | round(1) }}"
-  - choose:
-      - conditions:
-          - "{{ days_since >= reminder_threshold_days }}"
-          - "{{ reminder_enabled is none or is_state(reminder_enabled, 'on') }}"
-        sequence:
-          - device_id: !input mobile_device
-            domain: mobile_app
-            type: notify
-            title: "{{ task_name }} Reminder"
-            message: "It has been {{ days_since }} days since you last completed '{{ task_name }}'."
-            data:
-              actions:
-                - action: "{{ task_name | slugify }}_yes"
-                  title: "Yes, I did it"
-                  icon: "mdi:check"
-                - action: "{{ task_name | slugify }}_no"
-                  title: "No, not yet"
-                  icon: "mdi:close"
-              ttl: 0
-              priority: high
-              notification_icon: mdi:calendar-clock
-  - wait_for_trigger:
-      - platform: event
-        event_type: mobile_app_notification_action
-        event_data:
-          action: "{{ task_name | slugify }}_yes"
-    timeout: "1:00:00"
-    continue_on_timeout: false
-  - service: input_datetime.set_datetime
-    target:
-      entity_id: !input datetime_entity
+  - service: !input notification_target
     data:
-      datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      message: "Have you {{ input.task_name.lower() }} recently?"
+      title: "Reminder: {{ input.task_name }}"
+      data:
+        actions:
+          - action: "YES_{{ input.task_name | slugify }}"
+            title: "Yes"
+          - action: "NO_{{ input.task_name | slugify }}"
+            title: "No"
+
 mode: single
+
+# Handle Yes confirmation via a separate automation:
+# Create a separate automation triggered by the chosen action ID
+# Example:
+# trigger:
+#   - platform: event
+#     event_type: mobile_app_notification_action
+#     event_data:
+#       action: "YES_clean_toilet"
+# action:
+#   - service: input_datetime.set_datetime
+#     target:
+#       entity_id: input_datetime.toilet_last_cleaned
