@@ -1,3 +1,4 @@
+blueprint:
   name: Confirmable Reminder with Timer Reset
   description: >
     Sends a reminder if a task (like cleaning) hasn't been done in a while.
