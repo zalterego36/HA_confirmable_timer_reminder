@@ -1,4 +1,3 @@
-blueprint:
   name: Confirmable Reminder with Timer Reset
   description: >
     Sends a reminder if a task (like cleaning) hasn't been done in a while.
@@ -77,3 +76,16 @@ action:
             title: "No"
 
 mode: single
+
+# Handle Yes confirmation via a separate automation:
+# Create a separate automation triggered by the chosen action ID
+# Example:
+# trigger:
+#   - platform: event
+#     event_type: mobile_app_notification_action
+#     event_data:
+#       action: "YES_clean_toilet"
+# action:
+#   - service: input_datetime.set_datetime
+#     target:
+#       entity_id: input_datetime.toilet_last_cleaned
