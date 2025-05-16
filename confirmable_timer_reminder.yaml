@@ -56,13 +56,13 @@ condition:
         {{ days_passed >= inputs.reminder_interval }}
       {% endif %}
 
-  - condition: or
-    conditions:
-      - condition: template
-        value_template: "{{ inputs.reminder_toggle == '' }}"
-      - condition: state
-        entity_id: !input reminder_toggle
-        state: "on"
+  - condition: template
+    value_template: >
+      {% if inputs.reminder_toggle == '' %}
+        true
+      {% else %}
+        {{ is_state(inputs.reminder_toggle, 'on') }}
+      {% endif %}
 
 action:
   - service: "{{ inputs.notification_target }}"
