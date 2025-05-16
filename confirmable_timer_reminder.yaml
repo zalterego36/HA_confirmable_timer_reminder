@@ -65,7 +65,7 @@ condition:
         state: "on"
 
 action:
-  - service: !input notification_target
+  - service: "{{ inputs.notification_target }}"
     data:
       message: "Have you {{ input.task_name.lower() }} recently?"
       title: "Reminder: {{ input.task_name }}"
